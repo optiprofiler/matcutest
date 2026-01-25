@@ -1,0 +1,65 @@
+name: Sync MatCUTEst
+
+on:
+  schedule:
+    # Run once a day at 00:00 UTC to check for updates
+    - cron: '0 0 * * *'
+  workflow_dispatch:
+    # Allows manual triggering of the workflow from the GitHub Actions tab
+
+permissions:
+  contents: write
+
+jobs:
+  sync-and-filter:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Local Repository
+        uses: actions/checkout@v4
+
+      - name: Configure Git Identity
+        # Set up the git user to be the GitHub Actions bot for commits
+        run: |
+          git config --global user.name 'github-actions[bot]'
+          git config --global user.email 'github-actions[bot]@users.noreply.github.com'
+
+      - name: Sync
+        run: |
+          # 1. Attempt to clone the upstream repository
+          # We check the exit code to ensure the clone was successful before proceeding.
+          echo "Cloning upstream repository..."
+          if ! git clone --depth 1 https://github.com/matcutest/matcutest_compiled.git temp_upstream; then
+            echo "::error::Failed to fetch upstream repository. Aborting sync to prevent data loss."
+            exit 1
+          fi
+
+          echo "Upstream cloned successfully. Checking for updates..."
+
+          # 2. Sync files to src/ directory
+          # We use rsync to mirror the upstream content into src/, deleting local files that are gone upstream.
+          # We exclude .git metadata.
+          mkdir -p src
+          if command -v rsync >/dev/null 2>&1; then
+             rsync -a --delete --exclude '.git' temp_upstream/ src/
+          else
+             # Fallback if rsync is missing (unlikely on ubuntu-latest)
+             echo "rsync not found, falling back to rm/cp"
+             rm -rf src/*
+             cp -R temp_upstream/* src/
+             # Note: cp -R * skips dotfiles like .gitignore if they exist, but acceptable fallback
+          fi
+
+          # 3. Clean up temporary directory
+          rm -rf temp_upstream
+
+          # 4. Stage changes
+          git add src
+
+          # 5. Check if there are any changes to commit
+          if git diff --staged --quiet; then
+            echo "No changes detected. The 'src' folder is up to date."
+          else
+            echo "Updates detected. Committing changes..."
+            git commit -m "Auto-sync src/ from matcutest/matcutest_compiled"
+            git push
+          fi
