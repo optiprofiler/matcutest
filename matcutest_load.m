@@ -180,7 +180,7 @@ function msg = shorten_exception_message(ME)
     elseif ~isempty(ME.identifier)
         msg = sprintf('%s: %s', ME.identifier, msg);
     end
-    msg = regexprep(msg, '\s+', ' ');
+    msg = regexprep(msg, '[\f\n\r\t\v]+', ' ');
     max_len = 180;
     if numel(msg) > max_len
         msg = [msg(1:max_len - 3), '...'];
@@ -188,9 +188,9 @@ function msg = shorten_exception_message(ME)
 end
 
 function print_matcutest_warning(message)
-    width = 100;
-    prefix = 'WARNING: ';
-    message = strtrim(regexprep(char(message), '\s+', ' '));
+    width = 104;
+    prefix = sprintf('[%-7s] ', 'WARNING');
+    message = strtrim(regexprep(char(message), '[\f\n\r\t\v]+', ' '));
     if isempty(message)
         return;
     end
