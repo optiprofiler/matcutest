@@ -22,6 +22,7 @@ The `CI` workflow runs daily and on pushes on Linux. It installs the compiled Ma
 - selecting small problems through `matcutest_select`;
 - loading `AKIVA` and a few daily random small problems through `matcutest_load`;
 - evaluating `fun`, `cub`, and `ceq` at the initial point;
+- checking `test_feasibility_problems` in `config.txt`;
 - keeping numerical-library threads capped at two.
 
 Locally on Linux, from this repository:

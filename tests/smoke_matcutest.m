@@ -34,6 +34,10 @@ if exist('macup', 'file') ~= 2 || exist('secup', 'file') ~= 2
         'MatCUTEst is not installed. Run addpath(''src''); install(pwd) before this test.');
 end
 
+config_path = fullfile(repo_dir, 'config.txt');
+original_config = fileread(config_path);
+cleanup_config = onCleanup(@() write_text(config_path, original_config));
+
 selected = matcutest_select(struct('ptype', 'ubln', 'maxdim', 5, ...
     'maxb', 20, 'maxlcon', 20, 'maxnlcon', 20, 'maxcon', 20));
 assert(iscell(selected));
@@ -63,7 +67,27 @@ for i = 1:numel(sample)
     assert_problem_contract(sample{i});
 end
 
+assert_config_behavior(config_path);
+
 disp('matcutest adapter smoke ok');
+
+function assert_config_behavior(config_path)
+    options = struct('ptype', 'ubln', 'maxdim', 5, ...
+        'maxb', 20, 'maxlcon', 20, 'maxnlcon', 20, 'maxcon', 20);
+
+    write_matcutest_config(config_path, '0');
+    nonfeasibility_names = matcutest_select(options);
+    write_matcutest_config(config_path, '1');
+    feasibility_names = matcutest_select(options);
+    write_matcutest_config(config_path, '2');
+    all_names = matcutest_select(options);
+
+    assert(numel(all_names) >= numel(nonfeasibility_names));
+    assert(numel(all_names) >= numel(feasibility_names));
+
+    write_matcutest_config(config_path, '3');
+    assert_raises(@() matcutest_select(options));
+end
 
 function assert_problem_contract(problem_name)
     p = matcutest_load(problem_name);
@@ -75,4 +99,24 @@ function assert_problem_contract(problem_name)
     ceq0 = p.ceq(p.x0);
     assert(isvector(cub0));
     assert(isvector(ceq0));
+end
+
+function write_matcutest_config(config_path, test_feasibility_problems)
+    write_text(config_path, sprintf('test_feasibility_problems=%s\n', test_feasibility_problems));
+end
+
+function write_text(path, text)
+    fid = fopen(path, 'w');
+    cleanup = onCleanup(@() fclose(fid));
+    fprintf(fid, '%s', text);
+end
+
+function assert_raises(callback)
+    did_raise = false;
+    try
+        callback();
+    catch
+        did_raise = true;
+    end
+    assert(did_raise);
 end
