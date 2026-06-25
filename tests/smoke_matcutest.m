@@ -44,7 +44,9 @@ assert(iscell(selected));
 assert(~isempty(selected));
 assert(ismember('AKIVA', selected));
 
-assert_problem_contract('AKIVA');
+akiva_output = evalc('assert_problem_contract(''AKIVA'');');
+assert(~contains(akiva_output, 'Failed to evaluate the nonlinear inequality constraints'));
+assert(~contains(akiva_output, 'Failed to evaluate the nonlinear equality constraints'));
 
 seed_text = getenv('OP_RANDOM_SEED');
 if isempty(seed_text)
@@ -93,6 +95,10 @@ function assert_problem_contract(problem_name)
     p = matcutest_load(problem_name);
     assert(p.n >= 1);
     assert(numel(p.x0) == p.n);
+    ptype = p.ptype;
+    assert(ismember(char(ptype), {'u', 'b', 'l', 'n'}));
+    maxcv0 = p.maxcv(p.x0);
+    assert(isfinite(maxcv0) || isnan(maxcv0));
     fx0 = p.fun(p.x0);
     assert(isfinite(fx0) || isnan(fx0));
     cub0 = p.cub(p.x0);

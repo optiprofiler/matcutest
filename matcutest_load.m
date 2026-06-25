@@ -90,6 +90,10 @@ end
 
 function cubx = getcub(pb, x, m_nonlinear_ub_default)
     % Get the nonlinear inequality constraints.
+    if m_nonlinear_ub_default == 0
+        cubx = NaN(0, 1);
+        return;
+    end
     cubx = [];
     try
         evalc('cubx = pb.nonlcon(x)');
@@ -102,6 +106,10 @@ end
 
 function ceqx = getceq(pb, x, m_nonlinear_eq_default)
     % Get the nonlinear equality constraints.
+    if m_nonlinear_eq_default == 0
+        ceqx = NaN(0, 1);
+        return;
+    end
     ceqx = [];
     try
         evalc('[~, ceqx] = pb.nonlcon(x)');
@@ -114,6 +122,10 @@ end
 
 function jcubx = getjcub(pb, x, m_nonlinear_ub_default)
     % Get the Jacobian of the nonlinear inequality constraints.
+    if m_nonlinear_ub_default == 0
+        jcubx = NaN(0, numel(x));
+        return;
+    end
     jcubx = [];
     try
         evalc('[~, ~, jcubx] = pb.nonlcon(x)');
@@ -126,6 +138,10 @@ end
 
 function jceqx = getjceq(pb, x, m_nonlinear_eq_default)
     % Get the Jacobian of the nonlinear equality constraints.
+    if m_nonlinear_eq_default == 0
+        jceqx = NaN(0, numel(x));
+        return;
+    end
     jceqx = [];
     try
         evalc('[~, ~, ~, jceqx] = pb.nonlcon(x)');
