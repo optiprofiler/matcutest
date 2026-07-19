@@ -15,6 +15,50 @@ The file `config.txt` in this directory controls the adapter-level `test_feasibi
 
 MatCUTEst is supported only on GNU/Linux. Local tests on macOS intentionally skip the real MatCUTEst smoke test.
 
+## OptiProfiler Development Setup
+
+The setup and registry workflow below belongs to the unpublished OptiProfiler
+`matlab` development branch; it is not a claim about the current stable
+website. Ordinary OptiProfiler users should start from the core repository and
+let its locked setup install this adapter:
+
+```matlab
+setup(struct( ...
+    'install_matcutest', true, ...
+    'install_solar', false));
+```
+
+By default, the adapter checkout is stored below
+`prefdir/optiprofiler/problem_libraries/matcutest` and the MatCUTEst runtime is
+installed below the same optional-library root. A caller may choose another
+writable parent with the core setup option `problem_library_root`.
+
+After setup, use the public provider name rather than a custom path:
+
+```matlab
+options.plibs = {'matcutest'};
+scores = benchmark(solvers, options);
+
+library = resolveProblemLibrary('matcutest');
+```
+
+To update a setup-managed adapter, update the OptiProfiler core and rerun setup.
+A clean checkout is aligned to the commit in `matlab_problem_libraries.lock`;
+setup does not overwrite a dirty checkout. Do not run `git pull`
+unconditionally in the setup-managed directory.
+
+Detach the provider without deleting its checkout or runtime:
+
+```matlab
+unregisterProblemLibrary('matcutest');
+```
+
+`install_matcutest=false` only skips MatCUTEst during that setup run. It does
+not unregister or delete anything. Likewise, `setup uninstall` removes
+OptiProfiler-managed MATLAB paths but preserves the registry, adapter checkout,
+MatCUTEst runtime, compiled files, caches, and user data. There is deliberately
+no destructive setup option.
+
 ## Testing
 
 The `CI` workflow runs daily and on pushes on Linux. It installs the compiled MatCUTEst package, then checks the OptiProfiler adapter layer by:
@@ -25,7 +69,7 @@ The `CI` workflow runs daily and on pushes on Linux. It installs the compiled Ma
 - checking `test_feasibility_problems` in `config.txt`;
 - keeping numerical-library threads capped at two.
 
-Locally on Linux, from this repository:
+For maintainer or local adapter testing on Linux, from this repository:
 
 ```matlab
 addpath('src');
