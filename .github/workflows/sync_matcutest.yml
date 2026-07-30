@@ -34,7 +34,8 @@ jobs:
           # directories. Git cannot store those directories in src/, so they
           # are not managed snapshot content.
           find "$upstream" -depth -type d -empty \
-            ! -path "$upstream/.git*" -delete
+            ! -path "$upstream/.git" \
+            ! -path "$upstream/.git/*" -delete
           set +e
           diff -qr --exclude=.git src "$upstream" > "$RUNNER_TEMP/tree.diff"
           diff_status=$?
