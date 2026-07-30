@@ -2,11 +2,11 @@
 
 This repository provides an interface for OptiProfiler to access the [MatCUTEst](https://github.com/matcutest/matcutest) problem collection.
 
-It maintains a fork of the [compiled version of MatCUTEst](https://github.com/matcutest/matcutest_compiled) in the `src/` directory, while the root directory contains adaptation tools allowing OptiProfiler to invoke and work with these problems.
+It maintains a reviewed snapshot of the [compiled version of MatCUTEst](https://github.com/matcutest/matcutest_compiled) in the `src/` directory, while the root directory contains adaptation tools allowing OptiProfiler to invoke and work with these problems.
 
 ## Contents
 
-- **`src/`**: Directory synchronized with the `matcutest_compiled` repository.
+- **`src/`**: Reviewed snapshot of the `matcutest_compiled` repository.
 - **Adaptation Tools**: Wrapper scripts and utilities in the root directory that bridge OptiProfiler with the MatCUTEst collection.
 
 ## Configuration
@@ -79,7 +79,11 @@ run('tests/smoke_matcutest.m');
 
 ## Maintenance
 
-This repository is **automatically synchronized** with the upstream `matcutest_compiled` repository via GitHub Actions. It checks for updates daily to ensure the problem set remains current.
+`Check MatCUTEst Upstream` compares `src/` with the latest
+`matcutest_compiled` revision every day. A difference creates or updates an
+`upstream-update` issue and uploads a report. It never changes or pushes `src/`.
+Maintainers must review the candidate, run the full Linux adapter CI, and commit
+the promoted snapshot explicitly.
 
 Unlike S2MPJ and PyCUTEst, this repository does not maintain a separate collect-info workflow. This is intentional: MatCUTEst already provides `macup` for loading and `secup` for selecting problems, and `matcutest_select` delegates to that upstream logic instead of duplicating a metadata table.
 

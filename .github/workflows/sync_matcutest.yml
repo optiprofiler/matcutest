@@ -1,65 +1,125 @@
-name: Sync MatCUTEst
+name: Check MatCUTEst Upstream
 
 on:
   schedule:
-    # Run once a day at 00:00 UTC to check for updates
-    - cron: '0 0 * * *'
+    # 07:30 Beijing time, after the daily pinned-snapshot CI.
+    - cron: "30 23 * * *"
   workflow_dispatch:
-    # Allows manual triggering of the workflow from the GitHub Actions tab
 
 permissions:
-  contents: write
+  contents: read
+  issues: write
 
 jobs:
-  sync-and-filter:
+  check:
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     steps:
-      - name: Checkout Local Repository
+      - name: Checkout pinned provider snapshot
         uses: actions/checkout@v4
 
-      - name: Configure Git Identity
-        # Set up the git user to be the GitHub Actions bot for commits
+      - name: Fetch and compare the latest compiled MatCUTEst snapshot
+        id: audit
+        shell: bash
         run: |
-          git config --global user.name 'github-actions[bot]'
-          git config --global user.email 'github-actions[bot]@users.noreply.github.com'
+          set -euo pipefail
+          upstream="$RUNNER_TEMP/matcutest_compiled"
+          report="$RUNNER_TEMP/upstream-update-report.md"
 
-      - name: Sync
-        run: |
-          # 1. Attempt to clone the upstream repository
-          # We check the exit code to ensure the clone was successful before proceeding.
-          echo "Cloning upstream repository..."
-          if ! git clone --depth 1 https://github.com/matcutest/matcutest_compiled.git temp_upstream; then
-            echo "::error::Failed to fetch upstream repository. Aborting sync to prevent data loss."
-            exit 1
+          git clone --depth 1 https://github.com/matcutest/matcutest_compiled.git "$upstream"
+          upstream_commit="$(git -C "$upstream" rev-parse HEAD)"
+          upstream_subject="$(git -C "$upstream" show -s --format=%s HEAD)"
+          upstream_date="$(git -C "$upstream" show -s --format=%cI HEAD)"
+          set +e
+          diff -qr --exclude=.git src "$upstream" > "$RUNNER_TEMP/tree.diff"
+          diff_status=$?
+          set -e
+          if [ "$diff_status" -gt 1 ]; then
+            echo "::error::Managed-tree comparison failed with status $diff_status"
+            exit "$diff_status"
           fi
+          difference_count="$(wc -l < "$RUNNER_TEMP/tree.diff" | tr -d ' ')"
 
-          echo "Upstream cloned successfully. Checking for updates..."
+          {
+            echo "# MatCUTEst upstream update report"
+            echo
+            echo "- Provider commit: \`${GITHUB_SHA}\`"
+            echo "- Latest upstream commit: \`${upstream_commit}\`"
+            echo "- Latest upstream date: \`${upstream_date}\`"
+            echo "- Latest upstream subject: ${upstream_subject}"
+            echo "- Managed-file differences: ${difference_count}"
+            echo
+          } > "$report"
 
-          # 2. Sync files to src/ directory
-          # We use rsync to mirror the upstream content into src/, deleting local files that are gone upstream.
-          # We exclude .git metadata.
-          mkdir -p src
-          if command -v rsync >/dev/null 2>&1; then
-             rsync -a --delete --exclude '.git' temp_upstream/ src/
+          if [ "$difference_count" = 0 ]; then
+            echo "No managed-file changes were detected." >> "$report"
+            echo "changed=false" >> "$GITHUB_OUTPUT"
           else
-             # Fallback if rsync is missing (unlikely on ubuntu-latest)
-             echo "rsync not found, falling back to rm/cp"
-             rm -rf src/*
-             cp -R temp_upstream/* src/
-             # Note: cp -R * skips dotfiles like .gitignore if they exist, but acceptable fallback
+            {
+              echo "A candidate update is available. It has not been applied."
+              echo
+              echo '```text'
+              sed -n '1,300p' "$RUNNER_TEMP/tree.diff"
+              if [ "$difference_count" -gt 300 ]; then
+                echo "... report truncated; inspect the workflow artifact for the comparison input."
+              fi
+              echo '```'
+            } >> "$report"
+            echo "changed=true" >> "$GITHUB_OUTPUT"
           fi
 
-          # 3. Clean up temporary directory
-          rm -rf temp_upstream
+          cp "$report" upstream-update-report.md
 
-          # 4. Stage changes
-          git add src
+      - name: Upload comparison report
+        uses: actions/upload-artifact@v4
+        with:
+          name: matcutest-upstream-report
+          path: upstream-update-report.md
 
-          # 5. Check if there are any changes to commit
-          if git diff --staged --quiet; then
-            echo "No changes detected. The 'src' folder is up to date."
-          else
-            echo "Updates detected. Committing changes..."
-            git commit -m "Auto-sync src/ from matcutest/matcutest_compiled"
-            git push
-          fi
+      - name: Create or update the upstream notification
+        uses: actions/github-script@v7
+        env:
+          UPDATE_AVAILABLE: ${{ steps.audit.outputs.changed }}
+        with:
+          script: |
+            const fs = require("fs");
+            const title = "Upstream update available: matcutest_compiled";
+            const marker = "<!-- optiprofiler-upstream-update:matcutest -->";
+            const report = fs.readFileSync("upstream-update-report.md", "utf8");
+            const { owner, repo } = context.repo;
+            const issues = await github.paginate(github.rest.issues.listForRepo, {
+              owner, repo, state: "open", per_page: 100
+            });
+            const existing = issues.find(
+              issue => !issue.pull_request && issue.title === title && issue.body?.includes(marker)
+            );
+
+            if (process.env.UPDATE_AVAILABLE === "true") {
+              try {
+                await github.rest.issues.getLabel({ owner, repo, name: "upstream-update" });
+              } catch (error) {
+                if (error.status !== 404) throw error;
+                await github.rest.issues.createLabel({
+                  owner, repo, name: "upstream-update", color: "FBCA04",
+                  description: "A newer upstream snapshot requires maintainer review"
+                });
+              }
+              const body = `${marker}\n${report}\n\nThis workflow is notification-only. Review and promote the snapshot manually.`;
+              if (existing) {
+                await github.rest.issues.update({
+                  owner, repo, issue_number: existing.number, body, labels: ["upstream-update"]
+                });
+              } else {
+                await github.rest.issues.create({
+                  owner, repo, title, body, labels: ["upstream-update"]
+                });
+              }
+            } else if (existing) {
+              await github.rest.issues.createComment({
+                owner, repo, issue_number: existing.number,
+                body: "The pinned provider snapshot now matches the managed upstream files. Closing this notification."
+              });
+              await github.rest.issues.update({
+                owner, repo, issue_number: existing.number, state: "closed"
+              });
+            }
