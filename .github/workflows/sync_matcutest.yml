@@ -30,6 +30,11 @@ jobs:
           upstream_commit="$(git -C "$upstream" rev-parse HEAD)"
           upstream_subject="$(git -C "$upstream" show -s --format=%s HEAD)"
           upstream_date="$(git -C "$upstream" show -s --format=%cI HEAD)"
+          # A shallow clone leaves uninitialized submodules as empty
+          # directories. Git cannot store those directories in src/, so they
+          # are not managed snapshot content.
+          find "$upstream" -path "$upstream/.git" -prune -o \
+            -type d -empty -delete
           set +e
           diff -qr --exclude=.git src "$upstream" > "$RUNNER_TEMP/tree.diff"
           diff_status=$?
