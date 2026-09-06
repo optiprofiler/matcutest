@@ -74,7 +74,16 @@ module's initialized state in a fresh process. The installed runtime must
 remain at the same location; metadata is checked when restoring it. This does
 not compile, download, or modify upstream code, and no oracle is evaluated to
 recover constraint counts. Keep the adapter and core on path when loading
-saved `Problem` objects. A fresh-session check is:
+saved `Problem` objects.
+
+If that runtime has moved or is missing, MATLAB can turn an error from
+`MatcutestOracle.loadobj` into a warning while loading the MAT file. This
+load-time warning contains the original missing-runtime diagnosis; a returned
+`Problem` variable is not proof that its callbacks are usable. Later calls may
+report a secondary indexing error and return `NaN`. Keep the original runtime
+location available, resolve the load warning, and reload before evaluating.
+
+A fresh-session check is:
 
 ```matlab
 addpath('/path/to/this/adapter', '/path/to/this/adapter/tests');
