@@ -4,7 +4,8 @@ on:
   push:
   pull_request:
   schedule:
-    - cron: "53 2 * * *"
+    # 07:00 Beijing time.
+    - cron: "0 23 * * *"
   workflow_dispatch:
 
 permissions:
@@ -45,4 +46,4 @@ jobs:
       - name: Install MatCUTEst and run adapter tests
         uses: matlab-actions/run-command@v2
         with:
-          command: "addpath(fullfile(pwd, 'src')); install(pwd); run('tests/smoke_matcutest.m')"
+          command: "addpath(pwd); receipt = matcutest_setup(pwd); addpath(receipt.runtime_paths{:}); run('tests/smoke_matcutest.m'); addpath('tests'); test_constraint_counts; test_runtime_setup(pwd); test_real_constraints"

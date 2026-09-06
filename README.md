@@ -28,14 +28,48 @@ The `CI` workflow runs daily and on pushes on Linux. It installs the compiled Ma
 Locally on Linux, from this repository:
 
 ```matlab
-addpath('src');
-install(pwd);
+addpath(pwd);
+receipt = matcutest_setup('/absolute/path/to/isolated/runtime-parent');
+addpath(receipt.runtime_paths{:});
 run('tests/smoke_matcutest.m');
+addpath('tests');
+test_constraint_counts;
+test_real_constraints;
 ```
+
+## Managed Runtime Setup
+
+`matcutest_setup(runtime_parent)` is our adapter-owned installer. It extracts
+the reviewed local archive into `runtime_parent/matcutest`, or reuses a complete
+installation there. It does not download upstream updates, run native `setup`,
+change the MATLAB path, or write `startup.m`/`pathdef.m`. Incomplete existing
+installations fail explicitly and are not overwritten or removed.
+
+The returned receipt contains `schema_version=1`, `provider='matcutest'`, the
+canonical `runtime_root`, and `runtime_paths`, currently the single exact
+`mtools/src` directory below that root. These are runtime requirements, not a
+claim of ownership of any paths the user already added. The caller must retain
+its own exact added-path records across repeated setup and remove only owned
+entries on uninstall. Source, runtime, caches and user files are preserved.
+Core versions pinned to an older adapter must adopt this entry point before
+they gain its managed-install behavior. The unmodified native installer in
+`src/install.m` remains an upstream snapshot, not the managed entry point.
+
+`matcutest_load` uses the native `numnlineq`/`numnleq` metadata without another
+constraint probe. If these fields are absent, an explicitly empty native
+callback means zero constraints; otherwise a failed size probe raises an error
+with its original cause. Unknown counts never become zero silently. Native
+MEX paths are temporarily activated for loading and each returned callback,
+then restored; they are not installed or persisted as a blanket MEX tree.
 
 ## Maintenance
 
-This repository is **automatically synchronized** with the upstream `matcutest_compiled` repository via GitHub Actions. It checks for updates daily to ensure the problem set remains current.
+This paper-maintenance branch retains its reviewed upstream snapshot. Its
+historical sync job is restricted to `main` and has read-only repository
+permissions; neither scheduled nor manual runs on this frozen branch may
+change `src/` or push commits. The current development `main` has its separate
+notification-only upstream review workflow. Upstream promotion is a reviewed
+maintenance operation, not part of installation.
 
 Unlike S2MPJ and PyCUTEst, this repository does not maintain a separate collect-info workflow. This is intentional: MatCUTEst already provides `macup` for loading and `secup` for selecting problems, and `matcutest_select` delegates to that upstream logic instead of duplicating a metadata table.
 

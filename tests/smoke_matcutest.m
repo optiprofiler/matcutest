@@ -5,7 +5,6 @@ if ~isunix || ismac
 end
 
 addpath(repo_dir);
-addpath(fullfile(repo_dir, 'src'));
 
 local_op_src = fullfile(fileparts(fileparts(repo_dir)), ...
     'optiprofiler', 'matlab', 'optiprofiler', 'src');
@@ -20,18 +19,15 @@ else
 end
 
 if exist('macup', 'file') ~= 2 || exist('secup', 'file') ~= 2
-    mtools_dir = fullfile(repo_dir, 'matcutest', 'mtools');
-    if exist(fullfile(mtools_dir, 'setup.m'), 'file') == 2
-        current_dir = pwd;
-        cleanup = onCleanup(@() cd(current_dir));
-        cd(mtools_dir);
-        setup();
+    if isfolder(fullfile(repo_dir, 'matcutest'))
+        receipt = matcutest_setup(repo_dir);
+        addpath(receipt.runtime_paths{:});
     end
 end
 
 if exist('macup', 'file') ~= 2 || exist('secup', 'file') ~= 2
     error('MatCUTEst:SmokeTest', ...
-        'MatCUTEst is not installed. Run addpath(''src''); install(pwd) before this test.');
+        'MatCUTEst is not installed. Use matcutest_setup and its runtime_paths before this test.');
 end
 
 config_path = fullfile(repo_dir, 'config.txt');
