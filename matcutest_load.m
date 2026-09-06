@@ -1,5 +1,5 @@
 function problem = matcutest_load(problem_name)
-%MATCUTEST_LOAD coverts the MatCUTEst problem name to a Problem class instance.
+%MATCUTEST_LOAD converts the MatCUTEst problem name to a Problem class instance.
 %
 %   PROBLEM = MATCUTEST_LOAD(PROBLEM_NAME) returns a Problem class instance
 %   PROBLEM that corresponds to the problem named PROBLEM_NAME in MatCUTEst.
@@ -10,16 +10,25 @@ function problem = matcutest_load(problem_name)
 %   want.
 %
 %   Note that MatCUTEst is only available in Linux.
+%   Native numnlineq/numnleq metadata determines constraint counts without
+%   another oracle evaluation. If metadata is unavailable and probing fails,
+%   loading fails with the original cause, rather than dropping constraints.
+%   Native runtime paths are scoped to loading and each callback; they are
+%   not persisted to the caller's MATLAB path or startup file.
 %
 
     % Convert 'problem_name' to a char.
     problem_name = char(problem_name);
 
     % Use functions from MatCUTEst to get the problem structure.
+    original_path = path;
+    path_cleanup = onCleanup(@() path(original_path)); %#ok<NASGU>
     try
         pb = macup(problem_name);
-    catch
-        error("MATLAB:matcutest_load:errormacup", "Error occurred while using macup function on problem %s. Please check if MatCUTEst is installed correctly.", problem_name);
+    catch cause
+        exception = MException("MATLAB:matcutest_load:errormacup", ...
+            "Error loading MatCUTEst problem %s: %s", problem_name, cause.message);
+        throwAsCaller(addCause(exception, cause));
     end
 
     % Get the objective function.
@@ -43,7 +52,7 @@ function problem = matcutest_load(problem_name)
     bub = pb.bineq;
 
     % Get the nonlinear constraints and their Jacobians.
-    [m_nonlinear_ub, m_nonlinear_eq] = probe_nonlinear_constraint_sizes(pb, x0);
+    [m_nonlinear_ub, m_nonlinear_eq] = nonlinear_constraint_sizes(pb, x0, problem_name);
     ceq = @(x) getceq(pb, x, m_nonlinear_eq);
     cub = @(x) getcub(pb, x, m_nonlinear_ub);
     jceq = @(x) getjceq(pb, x, m_nonlinear_eq);
@@ -57,6 +66,7 @@ function fx = getfun(pb, x)
     % Get the objective function value.
     fx = [];
     try
+        cleanup = activate_runtime(pb); %#ok<NASGU>
         evalc('fx = pb.objective(x)');
     catch ME
         warn_matcutest_evaluation_failure('the objective function', pb, ME);
@@ -68,6 +78,7 @@ function gx = getgrad(pb, x)
     % Get the gradient of the objective function.
     gx = [];
     try
+        cleanup = activate_runtime(pb); %#ok<NASGU>
         evalc('[~, gx] = pb.objective(x)');
         gx = gx(:);
     catch ME
@@ -80,6 +91,7 @@ function hx = gethess(pb, x)
     % Get the Hessian of the objective function.
     hx = [];
     try
+        cleanup = activate_runtime(pb); %#ok<NASGU>
         evalc('[~, ~, hx] = pb.objective(x)');
         hx = full(hx);
     catch ME
@@ -96,6 +108,7 @@ function cubx = getcub(pb, x, m_nonlinear_ub_default)
     end
     cubx = [];
     try
+        cleanup = activate_runtime(pb); %#ok<NASGU>
         evalc('cubx = pb.nonlcon(x)');
         cubx = full(cubx(:));
     catch ME
@@ -112,6 +125,7 @@ function ceqx = getceq(pb, x, m_nonlinear_eq_default)
     end
     ceqx = [];
     try
+        cleanup = activate_runtime(pb); %#ok<NASGU>
         evalc('[~, ceqx] = pb.nonlcon(x)');
         ceqx = full(ceqx(:));
     catch ME
@@ -128,6 +142,7 @@ function jcubx = getjcub(pb, x, m_nonlinear_ub_default)
     end
     jcubx = [];
     try
+        cleanup = activate_runtime(pb); %#ok<NASGU>
         evalc('[~, ~, jcubx] = pb.nonlcon(x)');
         jcubx = convert_matcutest_jacobian(jcubx, m_nonlinear_ub_default, numel(x));
     catch ME
@@ -144,6 +159,7 @@ function jceqx = getjceq(pb, x, m_nonlinear_eq_default)
     end
     jceqx = [];
     try
+        cleanup = activate_runtime(pb); %#ok<NASGU>
         evalc('[~, ~, ~, jceqx] = pb.nonlcon(x)');
         jceqx = convert_matcutest_jacobian(jceqx, m_nonlinear_eq_default, numel(x));
     catch ME
@@ -164,20 +180,67 @@ function J = convert_matcutest_jacobian(J, m_expected, n_expected)
     J = J.';
 end
 
-function [m_nonlinear_ub, m_nonlinear_eq] = probe_nonlinear_constraint_sizes(pb, x0)
-    % Probe the nonlinear constraint sizes at the initial point.
-    m_nonlinear_ub = 0;
-    m_nonlinear_eq = 0;
+function [m_nonlinear_ub, m_nonlinear_eq] = nonlinear_constraint_sizes(pb, x0, name)
+    % These native counts include the two sides of ranged inequalities.
+    count_fields = {'numnlineq', 'numnleq'};
+    present = isfield(pb, count_fields);
+    if any(present)
+        if ~all(present)
+            error('MATLAB:matcutest_load:InvalidConstraintMetadata', ...
+                'Problem %s has incomplete nonlinear constraint counts.', name);
+        end
+        for k = 1:numel(count_fields)
+            count = pb.(count_fields{k});
+            if ~isnumeric(count) || ~isreal(count) || ~isscalar(count) || ...
+                    ~isfinite(count) || count < 0 || count ~= fix(count)
+                error('MATLAB:matcutest_load:InvalidConstraintMetadata', ...
+                    'Problem %s has an invalid %s count.', name, count_fields{k});
+            end
+        end
+        m_nonlinear_ub = pb.numnlineq;
+        m_nonlinear_eq = pb.numnleq;
+        if (m_nonlinear_ub + m_nonlinear_eq > 0) && ...
+                (~isfield(pb, 'nonlcon') || ~isa(pb.nonlcon, 'function_handle'))
+            error('MATLAB:matcutest_load:InvalidConstraintMetadata', ...
+                'Problem %s reports nonlinear constraints but has no callback.', name);
+        end
+        return;
+    end
+    % An explicitly empty callback is the documented native zero-constraint
+    % contract. A missing field or failed callback does not prove zero.
+    if isfield(pb, 'nonlcon') && isempty(pb.nonlcon)
+        m_nonlinear_ub = 0;
+        m_nonlinear_eq = 0;
+        return;
+    end
     try
         evalc('[cub0, ceq0] = pb.nonlcon(x0)');
-        if ~isempty(cub0)
-            m_nonlinear_ub = numel(cub0);
+        if ~isnumeric(cub0) || ~isnumeric(ceq0) || ...
+                ~(isempty(cub0) || isvector(cub0)) || ...
+                ~(isempty(ceq0) || isvector(ceq0))
+            error('MATLAB:matcutest_load:InvalidConstraintOutput', ...
+                'Constraint outputs must be numeric vectors.');
         end
-        if ~isempty(ceq0)
-            m_nonlinear_eq = numel(ceq0);
+        m_nonlinear_ub = numel(cub0);
+        m_nonlinear_eq = numel(ceq0);
+    catch cause
+        exception = MException('MATLAB:matcutest_load:ConstraintCountUnavailable', ...
+            'Cannot determine nonlinear constraint counts for problem %s: %s', name, cause.message);
+        throwAsCaller(addCause(exception, cause));
+    end
+end
+
+function cleanup = activate_runtime(pb)
+    original_path = path;
+    cleanup = onCleanup(@() path(original_path));
+    if isfield(pb, 'mexdir')
+        % macup selects one compiled MEX directory; never add all MEX paths.
+        matlab_dir = fullfile(fileparts(fileparts(pb.mexdir)), 'src', 'matlab');
+        if ~isfolder(pb.mexdir) || ~isfolder(matlab_dir)
+            error('MATLAB:matcutest_load:RuntimeUnavailable', ...
+                'The runtime for problem %s is no longer available.', pb.name);
         end
-    catch
-        % Keep zero sizes if probing fails.
+        addpath(matlab_dir, pb.mexdir);
     end
 end
 

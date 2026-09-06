@@ -46,4 +46,4 @@ jobs:
       - name: Install MatCUTEst and run adapter tests
         uses: matlab-actions/run-command@v2
         with:
-          command: "addpath(fullfile(pwd, 'src')); install(pwd); run('tests/smoke_matcutest.m')"
+          command: "addpath(pwd); receipt = matcutest_setup(pwd); addpath(receipt.runtime_paths{:}); run('tests/smoke_matcutest.m'); addpath('tests'); test_constraint_counts; test_runtime_setup(pwd); test_real_constraints"
