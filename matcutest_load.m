@@ -13,8 +13,9 @@ function problem = matcutest_load(problem_name)
 %   Native numnlineq/numnleq metadata determines constraint counts without
 %   another oracle evaluation. If metadata is unavailable and probing fails,
 %   loading fails with the original cause, rather than dropping constraints.
-%   Native runtime paths are scoped to loading and each callback; they are
-%   not persisted to the caller's MATLAB path or startup file.
+%   Native runtime paths are scoped to loading. Callbacks bind one installed
+%   problem MEX and never modify the caller's path; MAT reload initializes
+%   the same runtime without depending on another problem's active paths.
 %
 
     % Convert 'problem_name' to a char.
@@ -29,6 +30,16 @@ function problem = matcutest_load(problem_name)
         exception = MException("MATLAB:matcutest_load:errormacup", ...
             "Error loading MatCUTEst problem %s: %s", problem_name, cause.message);
         throwAsCaller(addCause(exception, cause));
+    end
+
+    [m_nonlinear_ub, m_nonlinear_eq] = nonlinear_constraint_sizes(pb, pb.x0, problem_name);
+    if isfield(pb, 'mexdir')
+        oracle = MatcutestOracle(pb.mexdir);
+        oracle.validate(pb, m_nonlinear_ub, m_nonlinear_eq);
+        pb.objective = @(x) oracle.objective(x);
+        if m_nonlinear_ub + m_nonlinear_eq > 0
+            pb.nonlcon = @(x) oracle.constraints(x);
+        end
     end
 
     % Get the objective function.
@@ -52,7 +63,6 @@ function problem = matcutest_load(problem_name)
     bub = pb.bineq;
 
     % Get the nonlinear constraints and their Jacobians.
-    [m_nonlinear_ub, m_nonlinear_eq] = nonlinear_constraint_sizes(pb, x0, problem_name);
     ceq = @(x) getceq(pb, x, m_nonlinear_eq);
     cub = @(x) getcub(pb, x, m_nonlinear_ub);
     jceq = @(x) getjceq(pb, x, m_nonlinear_eq);
@@ -66,7 +76,6 @@ function fx = getfun(pb, x)
     % Get the objective function value.
     fx = [];
     try
-        cleanup = activate_runtime(pb); %#ok<NASGU>
         evalc('fx = pb.objective(x)');
     catch ME
         warn_matcutest_evaluation_failure('the objective function', pb, ME);
@@ -78,7 +87,6 @@ function gx = getgrad(pb, x)
     % Get the gradient of the objective function.
     gx = [];
     try
-        cleanup = activate_runtime(pb); %#ok<NASGU>
         evalc('[~, gx] = pb.objective(x)');
         gx = gx(:);
     catch ME
@@ -91,7 +99,6 @@ function hx = gethess(pb, x)
     % Get the Hessian of the objective function.
     hx = [];
     try
-        cleanup = activate_runtime(pb); %#ok<NASGU>
         evalc('[~, ~, hx] = pb.objective(x)');
         hx = full(hx);
     catch ME
@@ -108,7 +115,6 @@ function cubx = getcub(pb, x, m_nonlinear_ub_default)
     end
     cubx = [];
     try
-        cleanup = activate_runtime(pb); %#ok<NASGU>
         evalc('cubx = pb.nonlcon(x)');
         cubx = full(cubx(:));
     catch ME
@@ -125,7 +131,6 @@ function ceqx = getceq(pb, x, m_nonlinear_eq_default)
     end
     ceqx = [];
     try
-        cleanup = activate_runtime(pb); %#ok<NASGU>
         evalc('[~, ceqx] = pb.nonlcon(x)');
         ceqx = full(ceqx(:));
     catch ME
@@ -142,7 +147,6 @@ function jcubx = getjcub(pb, x, m_nonlinear_ub_default)
     end
     jcubx = [];
     try
-        cleanup = activate_runtime(pb); %#ok<NASGU>
         evalc('[~, ~, jcubx] = pb.nonlcon(x)');
         jcubx = convert_matcutest_jacobian(jcubx, m_nonlinear_ub_default, numel(x));
     catch ME
@@ -159,7 +163,6 @@ function jceqx = getjceq(pb, x, m_nonlinear_eq_default)
     end
     jceqx = [];
     try
-        cleanup = activate_runtime(pb); %#ok<NASGU>
         evalc('[~, ~, ~, jceqx] = pb.nonlcon(x)');
         jceqx = convert_matcutest_jacobian(jceqx, m_nonlinear_eq_default, numel(x));
     catch ME
@@ -227,20 +230,6 @@ function [m_nonlinear_ub, m_nonlinear_eq] = nonlinear_constraint_sizes(pb, x0, n
         exception = MException('MATLAB:matcutest_load:ConstraintCountUnavailable', ...
             'Cannot determine nonlinear constraint counts for problem %s: %s', name, cause.message);
         throwAsCaller(addCause(exception, cause));
-    end
-end
-
-function cleanup = activate_runtime(pb)
-    original_path = path;
-    cleanup = onCleanup(@() path(original_path));
-    if isfield(pb, 'mexdir')
-        % macup selects one compiled MEX directory; never add all MEX paths.
-        matlab_dir = fullfile(fileparts(fileparts(pb.mexdir)), 'src', 'matlab');
-        if ~isfolder(pb.mexdir) || ~isfolder(matlab_dir)
-            error('MATLAB:matcutest_load:RuntimeUnavailable', ...
-                'The runtime for problem %s is no longer available.', pb.name);
-        end
-        addpath(matlab_dir, pb.mexdir);
     end
 end
 

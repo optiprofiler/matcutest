@@ -67,6 +67,8 @@ The `CI` workflow runs daily and on pushes on Linux. It installs the compiled Ma
 - loading `AKIVA` and a few daily random small problems through `matcutest_load`;
 - evaluating `fun`, `cub`, and `ceq` at the initial point;
 - checking `test_feasibility_problems` in `config.txt`;
+- comparing bound objective/gradient/Hessian and constraint/Jacobian callbacks
+  against native results, including alternating runtime roots and a fresh-session MAT reload;
 - keeping numerical-library threads capped at two.
 
 For maintainer or local adapter testing on Linux, from this repository:
@@ -79,6 +81,7 @@ run('tests/smoke_matcutest.m');
 addpath('tests');
 test_constraint_counts;
 test_real_constraints;
+test_bound_oracles(fullfile(tempdir, 'matcutest-bound-oracles.mat'));
 ```
 
 ## Managed Runtime Setup
@@ -103,8 +106,25 @@ they gain its managed-install behavior. The unmodified native installer in
 constraint probe. If these fields are absent, an explicitly empty native
 callback means zero constraints; otherwise a failed size probe raises an error
 with its original cause. Unknown counts never become zero silently. Native
-MEX paths are temporarily activated for loading and each returned callback,
-then restored; they are not installed or persisted as a blanket MEX tree.
+paths are temporarily activated only while loading, then restored. The
+adapter's internal `MatcutestOracle` binds the exact problem MEX file; callbacks
+do not query, activate, or restore the MATLAB path. Objective, gradient and
+Hessian commands use that binding. Nonlinear upper sides, lower sides and
+equalities retain the ordering and Jacobian convention of native `macup`.
+
+The binding runs native setup once when constructed and again when restored
+from a MAT file, because a saved function handle does not preserve a MEX
+module's initialized state in a fresh process. The installed runtime must
+remain at the same location; metadata is checked when restoring it. This does
+not compile, download, or modify upstream code, and no oracle is evaluated to
+recover constraint counts. Keep the adapter and core on path when loading
+saved `Problem` objects. A fresh-session check is:
+
+```matlab
+addpath('/path/to/this/adapter', '/path/to/this/adapter/tests');
+addpath('/path/to/optiprofiler/matlab/optiprofiler/src');
+test_bound_oracles(fullfile(tempdir, 'matcutest-bound-oracles.mat'), true);
+```
 
 ## Maintenance
 
