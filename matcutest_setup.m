@@ -44,10 +44,15 @@ function receipt = matcutest_setup(runtime_parent)
         if ~isfile(archive)
             error('MatCUTEst:ArchiveMissing', 'The reviewed compiled archive is missing: %s', archive);
         end
+        [status, ~] = system('command -v 7z');
+        if status ~= 0
+            error('MatCUTEst:SevenZipMissing', ['MatCUTEst setup needs 7-Zip (the `7z` command) on PATH ' ...
+                'to extract the compiled runtime. Install the 7zip (or p7zip-full) package and retry.']);
+        end
         staging = tempname(runtime_parent);
         mkdir(staging);
         cleanup = onCleanup(@() remove_staging(staging)); %#ok<NASGU>
-        [status, output] = system(sprintf('7z x -y -o%s %s', quote(staging), quote(archive)));
+        [status, output] = run_system(sprintf('7z x -y -o%s %s', quote(staging), quote(archive)));
         if status ~= 0
             error('MatCUTEst:ExtractionFailed', 'Compiled runtime extraction failed: %s', output);
         end
@@ -90,8 +95,27 @@ function require_inside(filename, root)
     end
 end
 
+function [status, output] = run_system(command)
+    % MATLAB passes its own LD_LIBRARY_PATH (with its bundled, older C++
+    % runtime) to system(). A system executable linked against a newer
+    % libstdc++ (for example 7z on Ubuntu 26.04: CXXABI_1.3.15) then fails
+    % to start. Run the command unchanged first, so user library paths keep
+    % working, and retry once without that variable, as OptiProfiler does
+    % for its PDF tools. PATH and the other variables are preserved.
+    [status, output] = system(command);
+    if status ~= 0 && ~isempty(getenv('LD_LIBRARY_PATH'))
+        [retry_status, retry_output] = system(['/usr/bin/env -u LD_LIBRARY_PATH ', command]);
+        if retry_status == 0
+            status = retry_status;
+            output = retry_output;
+        else
+            output = sprintf('%s\nRetry without LD_LIBRARY_PATH: %s', strtrim(output), strtrim(retry_output));
+        end
+    end
+end
+
 function filename = canonical_path(filename)
-    [status, output] = system(['realpath -e -- ', quote(filename)]);
+    [status, output] = run_system(['realpath -e -- ', quote(filename)]);
     if status ~= 0
         error('MatCUTEst:RuntimeDirectory', 'Cannot resolve runtime path: %s', filename);
     end

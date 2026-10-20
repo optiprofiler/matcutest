@@ -92,6 +92,12 @@ installation there. It does not download upstream updates, run native `setup`,
 change the MATLAB path, or write `startup.m`/`pathdef.m`. Incomplete existing
 installations fail explicitly and are not overwritten or removed.
 
+Extraction needs 7-Zip (`7z`) on `PATH`; setup reports a missing `7z` before
+staging anything. MATLAB runs external commands with its own `LD_LIBRARY_PATH`,
+whose bundled C++ runtime can be older than the one a system `7z` needs. Setup
+therefore retries a failed external command once without that variable, keeping
+`PATH` and the rest of the environment unchanged.
+
 The returned receipt contains `schema_version=1`, `provider='matcutest'`, the
 canonical `runtime_root`, and `runtime_paths`, currently the single exact
 `mtools/src` directory below that root. These are runtime requirements, not a

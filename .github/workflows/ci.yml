@@ -46,7 +46,7 @@ jobs:
       - name: Install MatCUTEst and run adapter tests
         uses: matlab-actions/run-command@v2
         with:
-          command: "addpath(pwd); receipt = matcutest_setup(pwd); addpath(receipt.runtime_paths{:}); run('tests/smoke_matcutest.m'); addpath('tests'); test_constraint_counts; test_runtime_setup(pwd); test_real_constraints; test_bound_oracles(fullfile(getenv('RUNNER_TEMP'), 'matcutest-bound-oracles.mat')); second = matcutest_setup(fullfile(getenv('RUNNER_TEMP'), 'second-runtime')); test_bound_runtime_roots({receipt.runtime_root, second.runtime_root}, fullfile(getenv('RUNNER_TEMP'), 'matcutest-bound-roots.mat'));"
+          command: "addpath(pwd); receipt = matcutest_setup(pwd); addpath(receipt.runtime_paths{:}); run('tests/smoke_matcutest.m'); addpath('tests'); test_constraint_counts; test_runtime_setup(pwd); test_setup_system_commands(fullfile(getenv('RUNNER_TEMP'), 'matcutest-system-commands')); test_real_constraints; test_bound_oracles(fullfile(getenv('RUNNER_TEMP'), 'matcutest-bound-oracles.mat')); second = matcutest_setup(fullfile(getenv('RUNNER_TEMP'), 'second-runtime')); test_bound_runtime_roots({receipt.runtime_root, second.runtime_root}, fullfile(getenv('RUNNER_TEMP'), 'matcutest-bound-roots.mat'));"
 
       - name: Reload bound Problems in a fresh MATLAB session
         uses: matlab-actions/run-command@v2
