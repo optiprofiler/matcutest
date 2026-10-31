@@ -1,5 +1,7 @@
 # MatCUTEst
 
+**OptiProfiler 2.0:** See [compatibility and release boundaries](V2_COMPATIBILITY.md).
+
 This repository provides an interface for OptiProfiler to access the [MatCUTEst](https://github.com/matcutest/matcutest) problem collection.
 
 It maintains a reviewed snapshot of the [compiled version of MatCUTEst](https://github.com/matcutest/matcutest_compiled) in the `src/` directory, while the root directory contains adaptation tools allowing OptiProfiler to invoke and work with these problems.
@@ -15,12 +17,11 @@ The file `config.txt` in this directory controls the adapter-level `test_feasibi
 
 MatCUTEst is supported only on GNU/Linux. Local tests on macOS intentionally skip the real MatCUTEst smoke test.
 
-## OptiProfiler Development Setup
+## OptiProfiler Setup
 
-The setup and registry workflow below belongs to the unpublished OptiProfiler
-`matlab` development branch; it is not a claim about the current stable
-website. Ordinary OptiProfiler users should start from the core repository and
-let its locked setup install this adapter:
+The setup and registry workflow below belongs to OptiProfiler 2.0, which the
+website describes only once it is released. Ordinary OptiProfiler users should
+start from the core repository and let its locked setup install this adapter:
 
 ```matlab
 setup(struct( ...
