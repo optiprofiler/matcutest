@@ -31,7 +31,8 @@ jobs:
         with:
           repository: optiprofiler/optiprofiler
           path: optiprofiler
-          ref: main
+          # The exact 2.0.0 core this provider release was accepted with.
+          ref: ec130fb4e2fd7e59204bc4696d36b30eb2fa9da3
 
       - name: Install system dependencies
         run: |
@@ -46,7 +47,7 @@ jobs:
       - name: Install MatCUTEst and run adapter tests
         uses: matlab-actions/run-command@v2
         with:
-          command: "addpath(pwd); receipt = matcutest_setup(pwd); addpath(receipt.runtime_paths{:}); run('tests/smoke_matcutest.m'); addpath('tests'); test_constraint_counts; test_runtime_setup(pwd); test_setup_system_commands(fullfile(getenv('RUNNER_TEMP'), 'matcutest-system-commands')); test_real_constraints; test_bound_oracles(fullfile(getenv('RUNNER_TEMP'), 'matcutest-bound-oracles.mat')); second = matcutest_setup(fullfile(getenv('RUNNER_TEMP'), 'second-runtime')); test_bound_runtime_roots({receipt.runtime_root, second.runtime_root}, fullfile(getenv('RUNNER_TEMP'), 'matcutest-bound-roots.mat'));"
+          command: "addpath(pwd); receipt = matcutest_setup(pwd); addpath(receipt.runtime_paths{:}); run('tests/smoke_matcutest.m'); addpath('tests'); test_constraint_counts; test_runtime_setup(pwd); test_setup_system_commands(fullfile(getenv('RUNNER_TEMP'), 'matcutest-system-commands')); test_real_constraints; test_bound_oracles(fullfile(getenv('RUNNER_TEMP'), 'matcutest-bound-oracles.mat')); second = matcutest_setup(fullfile(getenv('RUNNER_TEMP'), 'second-runtime')); test_bound_runtime_roots({receipt.runtime_root, second.runtime_root}, fullfile(getenv('RUNNER_TEMP'), 'matcutest-bound-roots.mat')); test_v2_contract;"
 
       - name: Reload bound Problems in a fresh MATLAB session
         uses: matlab-actions/run-command@v2
