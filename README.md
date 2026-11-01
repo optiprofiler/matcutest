@@ -154,6 +154,8 @@ Unlike S2MPJ and PyCUTEst, this repository does not maintain a separate collect-
 
 ## Provenance and License
 
-The files under `src/` are synchronized from [matcutest/matcutest_compiled](https://github.com/matcutest/matcutest_compiled), which is licensed under LGPL-3.0; see `src/LICENCE.txt`. This repository adds the OptiProfiler adapter and maintenance workflows. Please also follow the citation guidance for MatCUTEst and CUTEst.
+The OptiProfiler adapter in this repository (the root MATLAB files, `config.txt`, the documentation, tests and maintenance workflows) is licensed under the [BSD 3-Clause License](LICENSE). That license covers only these files.
+
+The files under `src/` are synchronized from [matcutest/matcutest_compiled](https://github.com/matcutest/matcutest_compiled), which is licensed under LGPL-3.0; see `src/LICENCE.txt`. The MatCUTEst and CUTEst runtime that `matcutest_setup` installs from that snapshot keeps its own terms. See [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md) for the component boundaries. Please also follow the citation guidance for MatCUTEst and CUTEst.
 
 For the full collection or other languages, please visit the [original repository](https://github.com/matcutest/matcutest_compiled).

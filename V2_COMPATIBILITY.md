@@ -22,5 +22,5 @@ Unregister removes registration/path ownership, not source/runtime/cache.
 Core uninstall does not delete provider data. Validate with isolated registry,
 startup and pathdef targets, including new sessions and parallel workers.
 Core setup installs this adapter at the exact commit in
-matlab_problem_libraries.lock, which the tag `optiprofiler-2.0.0` keeps
-reachable.
+matlab_problem_libraries.lock, which `main` and the branch
+`release/optiprofiler-2.0.0` keep reachable.
